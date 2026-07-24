@@ -19,15 +19,15 @@ def render() -> Path:
     .flowbox{{margin-top:14px}}h2{{font-size:16px;margin:0 0 15px}}.flow{{display:flex;align-items:center;gap:8px}}
     .node{{flex:1;background:#efe9dc;border-radius:10px;padding:16px;text-align:center;font-size:12px;font-weight:700}}.arrow{{color:#927a5b}}
     </style></head><body><div class="shell"><span class="badge">SUCCESS · IDEMPOTENT LOAD</span>
-    <h1>E-commerce Invoice ETL Run</h1><div class="sub">Actual local execution evidence</div>
+    <h1>UCI Online Retail ETL Run</h1><div class="sub">Complete workbook · incremental execution evidence</div>
     <section class="cards">
-    <div class="card"><div class="label">Input</div><div class="value">{result['input_rows']:,}</div></div>
-    <div class="card"><div class="label">Accepted</div><div class="value">{result['accepted_rows']:,}</div></div>
+    <div class="card"><div class="label">Source rows</div><div class="value">{result['source_rows']:,}</div></div>
+    <div class="card"><div class="label">Processed window</div><div class="value">{result['window_rows']:,}</div></div>
     <div class="card"><div class="label">Rejected</div><div class="value">{result['rejected_rows']:,}</div></div>
     <div class="card"><div class="label">Cancellations</div><div class="value">{result['cancellation_rows']:,}</div></div>
     <div class="card"><div class="label">Warehouse rows</div><div class="value">{result['warehouse_rows']:,}</div></div>
     </section><div class="flowbox"><h2>Executed workflow</h2><div class="flow">
-    <div class="node">Invoice CSV</div><span class="arrow">→</span><div class="node">Contract</div><span class="arrow">→</span>
+    <div class="node">UCI XLSX</div><span class="arrow">→</span><div class="node">Checksum + contract</div><span class="arrow">→</span>
     <div class="node">Quality rules</div><span class="arrow">→</span><div class="node">Parquet + quarantine</div><span class="arrow">→</span>
     <div class="node">PostgreSQL star schema</div><span class="arrow">→</span><div class="node">RFM marts</div></div></div>
     </div></body></html>"""
@@ -39,4 +39,3 @@ def render() -> Path:
 
 if __name__ == "__main__":
     render()
-

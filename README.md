@@ -1,93 +1,106 @@
-# Local E-commerce Invoice ETL
+# UCI Online Retail ETL
 
-[Bản tiếng Việt](README.vi.md)
+[![CI](https://github.com/npgb2505/ecommerce-invoice-etl-local/actions/workflows/ci.yml/badge.svg)](https://github.com/npgb2505/ecommerce-invoice-etl-local/actions/workflows/ci.yml)
 
-A complete, cloud-free implementation of an e-commerce invoice pipeline:
+A full local data platform for the complete **UCI Online Retail** workbook. It downloads and fingerprints the source, applies invoice-line quality rules, preserves cancellations, produces batch-partitioned Parquet and quarantine outputs, and bulk-loads an idempotent PostgreSQL warehouse. Airflow supports scheduled incremental runs and timestamp backfills.
 
-`Kaggle-compatible CSV → validation → cleaning and quarantine → Parquet → PostgreSQL star schema → analytics dashboard`
+> Runs with Docker and public data only; no paid cloud account is required.
 
-The project keeps the useful data-engineering parts of a larger cloud project while removing paid GCP/AWS dependencies.
+## Verified full-data run
+
+| Metric | Result |
+|---|---:|
+| Source rows | 541,909 |
+| Accepted / rejected | 541,907 / 2 |
+| Cancellations preserved | 10,624 |
+| Known customers | 4,372 |
+| Coverage | 2010-12-01 to 2011-12-09 |
+| Net revenue | £9,769,872.05 |
+| Incremental lookback | 7,855 rows |
+| Warehouse rows after rerun | 541,907 |
+
+The rerun reprocessed a two-day lookback while keeping the fact table at exactly 541,907 rows.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    A[Invoice CSV] --> B[Extract + contract]
-    B --> C[Data quality rules]
-    C -->|accepted| D[Clean Parquet]
-    C -->|rejected| E[Quarantine CSV]
-    D --> F[(PostgreSQL star schema)]
-    F --> G[Daily sales / Country sales / RFM]
-    G --> H[Local HTML dashboard]
-    I[Apache Airflow] -. schedules .-> B
+    A["UCI ZIP / XLSX"] --> B["Atomic download + SHA-256 manifest"]
+    B --> C["Schema and type validation"]
+    C --> D["Invoice-line quality rules"]
+    D --> P["Batch Parquet"]
+    D --> Q["Quarantine"]
+    P --> S["PostgreSQL COPY staging"]
+    S --> U["Idempotent dimension/fact upserts"]
+    U --> M["Daily, country, product and RFM marts"]
+    D --> O["Audit, DQ results, watermark, metrics"]
+    AF["Airflow LocalExecutor"] --> B
 ```
 
-## Implemented features
+Editable source: [docs/architecture.excalidraw](docs/architecture.excalidraw)
 
-- Compatible with the Kaggle `E-Commerce Data` column structure.
-- Reproducible local demo dataset; no Kaggle credential is required for verification.
-- Guest-customer handling, cancellation detection and revenue calculation.
-- Quarantine with explicit rejection reasons.
-- Clean Parquet output for downstream analytics.
-- Customer and product dimensions plus an invoice-line fact table.
-- Idempotent upserts for repeatable pipeline runs.
-- Daily sales, country sales and customer RFM marts.
-- Airflow scheduling, retry policy and final run assertion.
-- PostgreSQL and pgAdmin in Docker Compose.
-- Dashboard generated from actual warehouse queries.
+## Production-style behavior
 
-## Quick start
+- Complete 23 MB UCI workbook, not generated sample data.
+- Atomic download, source checksum, reproducibility manifest, and cached reruns.
+- Full refresh, timestamp watermark, late-arrival lookback, and bounded backfills.
+- PostgreSQL `COPY` staging for more than half a million rows.
+- Stable line identity and conflict-safe upserts.
+- Cancellations remain in the fact table so net revenue is analytically correct.
+- Quality results, pipeline history, Prometheus metrics, and per-batch evidence.
+- Separate Airflow metadata database, scheduler, and webserver.
+
+## Warehouse model
+
+- `ecommerce.dim_customer`
+- `ecommerce.dim_product`
+- `ecommerce.fact_invoice_line`
+- `ecommerce.mart_daily_sales`
+- `ecommerce.mart_country_sales`
+- `ecommerce.mart_product_performance`
+- `ecommerce.mart_customer_rfm`
+- control tables for runs, watermarks, and quality results
+
+## Run locally
 
 ```bash
-docker compose build
-docker compose up -d warehouse
-docker compose run --rm airflow python /opt/project/src/generate_data.py
-docker compose run --rm airflow python /opt/project/src/pipeline.py
+make full
+docker compose up -d airflow airflow-scheduler pgadmin
 ```
 
-Start Airflow and pgAdmin:
+- Airflow: <http://localhost:8083> — `airflow` / `airflow`
+- PostgreSQL: `localhost:5543` — database/user/password: `ecommerce`
+- pgAdmin: <http://localhost:5053> — `admin@example.com` / `admin`
+
+Incremental run:
 
 ```bash
-docker compose up -d
+make incremental
 ```
 
-- Airflow: <http://localhost:8083>
-- pgAdmin: <http://localhost:5053>
-- PostgreSQL: `localhost:5543`, database/user/password: `ecommerce`
-
-## Demo
-
-The following images are captured from an actual local pipeline run.
-
-The verified run processed 1,200 invoice lines, accepted 1,196, quarantined 4 and preserved 12 cancellation lines. Airflow completed all three tasks successfully.
-
-![Airflow DAG success](docs/images/airflow-dag.png)
-
-![E-commerce warehouse dashboard](docs/images/dashboard.png)
-
-![Pipeline run evidence](docs/images/pipeline-run.png)
-
-## Outputs
-
-| Output | Description |
-|---|---|
-| `data/clean/invoice_lines.parquet` | Valid invoice lines |
-| `data/rejected/invoice_lines.csv` | Quarantined lines |
-| `artifacts/run_summary.json` | Run-level evidence |
-| `artifacts/dashboard.html` | Warehouse-backed dashboard |
-| `ecommerce.fact_invoice_line` | Analytical fact table |
-| `ecommerce.mart_customer_rfm` | Customer RFM features |
-
-## Tests
+Backfill:
 
 ```bash
-python -m pytest -q
+make backfill START=2011-10-01T00:00:00+00:00 END=2011-10-31T23:59:59+00:00
 ```
 
-## Real dataset
-
-The expected schema matches [Kaggle E-Commerce Data](https://www.kaggle.com/datasets/carrie1/ecommerce-data). Download its CSV and pass it with:
+Validation:
 
 ```bash
-python src/pipeline.py --input /path/to/data.csv
+make test
+docker compose run --rm airflow airflow dags test ecommerce_invoice_etl 2026-07-24
 ```
+
+## Execution evidence
+
+![Airflow DAG](docs/images/airflow-dag.png)
+
+![Pipeline run](docs/images/pipeline-run.png)
+
+![Analytics dashboard](docs/images/dashboard.png)
+
+## Data source
+
+[UCI Machine Learning Repository — Online Retail](https://archive.ics.uci.edu/dataset/352/online+retail). The workbook is downloaded at runtime and not committed.
+
+Vietnamese documentation: [README.vi.md](README.vi.md)

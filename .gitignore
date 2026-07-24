@@ -5,7 +5,12 @@ __pycache__/
 airflow/
 data/clean/
 data/rejected/
+data/landing/
+data/manifests/
+data/raw/*
+!data/raw/.gitkeep
 artifacts/*.json
 artifacts/*.html
+artifacts/*.prom
+artifacts/runs/
 *.log
-

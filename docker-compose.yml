@@ -1,4 +1,38 @@
+x-airflow-common: &airflow-common
+  build: .
+  environment: &airflow-environment
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__DAGS_FOLDER: /opt/project/dags
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
+    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
+    WAREHOUSE_DSN: postgresql://ecommerce:ecommerce@warehouse:5432/ecommerce
+    PYTHONPATH: /opt/project
+  volumes:
+    - ./:/opt/project
+    - ecommerce_airflow_logs:/opt/airflow/logs
+  depends_on:
+    airflow-db:
+      condition: service_healthy
+    warehouse:
+      condition: service_healthy
+
 services:
+  airflow-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - ecommerce_airflow_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow -d airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
   warehouse:
     image: postgres:16-alpine
     environment:
@@ -15,23 +49,47 @@ services:
       timeout: 5s
       retries: 12
 
+  airflow-init:
+    <<: *airflow-common
+    command:
+      - bash
+      - -c
+      - |
+        airflow db migrate
+        airflow users create \
+          --username airflow \
+          --password airflow \
+          --firstname Data \
+          --lastname Engineer \
+          --role Admin \
+          --email airflow@example.com || true
+    restart: "no"
+
   airflow:
-    build: .
-    command: standalone
-    environment:
-      AIRFLOW_HOME: /opt/airflow
-      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-      AIRFLOW__CORE__DAGS_FOLDER: /opt/project/dags
-      WAREHOUSE_DSN: postgresql://ecommerce:ecommerce@warehouse:5432/ecommerce
-      PYTHONPATH: /opt/project
+    <<: *airflow-common
+    command: webserver
     ports:
       - "8083:8080"
-    volumes:
-      - ./:/opt/project
-      - ecommerce_airflow:/opt/airflow
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
     depends_on:
-      warehouse:
-        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob --hostname \"$${HOSTNAME}\""]
+      interval: 15s
+      timeout: 10s
+      retries: 12
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
 
   pgadmin:
     image: dpage/pgadmin4:9.1
@@ -47,5 +105,6 @@ services:
 
 volumes:
   ecommerce_pgdata:
-  ecommerce_airflow:
+  ecommerce_airflow_db:
+  ecommerce_airflow_logs:
 
