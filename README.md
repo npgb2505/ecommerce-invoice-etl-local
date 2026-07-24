@@ -1,116 +1,103 @@
-# UCI Online Retail ETL
+<p align="center">
+  <img src="docs/readme-header.svg" alt="Invoice Intelligence — from invoice lines to customer insight" width="100%">
+</p>
 
-[![CI](https://github.com/npgb2505/ecommerce-invoice-etl-local/actions/workflows/ci.yml/badge.svg)](https://github.com/npgb2505/ecommerce-invoice-etl-local/actions/workflows/ci.yml)
+<p align="center">
+  <a href="https://github.com/npgb2505/ecommerce-invoice-etl-local/actions/workflows/ci.yml"><img src="https://github.com/npgb2505/ecommerce-invoice-etl-local/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  · <a href="README.vi.md">Tiếng Việt</a>
+  · <a href="docs/architecture.excalidraw">Editable architecture</a>
+</p>
 
-A full local data platform for the complete **UCI Online Retail** workbook. It downloads and fingerprints the source, applies invoice-line quality rules, preserves cancellations, produces batch-partitioned Parquet and quarantine outputs, and bulk-loads an idempotent PostgreSQL warehouse. Airflow supports scheduled incremental runs and timestamp backfills.
+# UCI Online Retail — Invoice Intelligence Pipeline
 
-> Runs with Docker and public data only; no paid cloud account is required.
+An invoice is not automatically a sale. This pipeline keeps cancellations, anonymous buyers and imperfect product descriptions visible so that revenue and customer metrics reflect the real business. It processes the complete **UCI Online Retail** workbook and publishes analytics-ready marts in PostgreSQL.
 
-## Verified full-data run
+## The business questions
 
-| Metric | Result |
-|---|---:|
-| Source rows | 541,909 |
-| Accepted / rejected | 541,907 / 2 |
-| Cancellations preserved | 10,624 |
-| Known customers | 4,372 |
-| Coverage | 2010-12-01 to 2011-12-09 |
-| Net revenue | £9,769,872.05 |
-| Incremental lookback | 7,855 rows |
-| Warehouse rows after rerun | 541,907 |
+| Question | Data product |
+|---|---|
+| What is actual net revenue after cancellations? | `mart_daily_sales` |
+| Which markets generate the most value? | `mart_country_sales` |
+| Which products combine demand and revenue? | `mart_product_performance` |
+| Who are the recent, frequent and high-value customers? | `mart_customer_rfm` |
 
-The rerun reprocessed a two-day lookback while keeping the fact table at exactly 541,907 rows.
+## Dataset realities handled explicitly
 
-## Architecture
-
-```mermaid
-flowchart LR
-    A["UCI ZIP / XLSX"] --> B["Atomic download + SHA-256 manifest"]
-    B --> C["Schema and type validation"]
-    C --> D["Invoice-line quality rules"]
-    D --> P["Batch Parquet"]
-    D --> Q["Quarantine"]
-    P --> S["PostgreSQL COPY staging"]
-    S --> U["Idempotent dimension/fact upserts"]
-    U --> M["Daily, country, product and RFM marts"]
-    D --> O["Audit, DQ results, watermark, metrics"]
-    AF["Airflow LocalExecutor"] --> B
+```text
+541,909 invoice lines
+├── 541,907 accepted
+├──       2 quarantined
+├──  10,624 cancellation lines retained
+└──   4,372 identified customers
 ```
 
-Editable source: [docs/architecture.excalidraw](docs/architecture.excalidraw)
+- **Cancellation invoices stay in the fact table.** Removing them would inflate revenue.
+- **Missing customer IDs remain analytically usable.** They are excluded only from customer-level RFM.
+- **Stable line IDs make reruns safe.** A two-day lookback reprocessed 7,855 rows while the warehouse remained at 541,907.
+- **PostgreSQL `COPY` handles volume.** More than half a million lines are staged in bulk, not inserted one by one.
 
-## Production-style behavior
+## From workbook to customer insight
 
-- Complete 23 MB UCI workbook, not generated sample data.
-- Atomic download, source checksum, reproducibility manifest, and cached reruns.
-- Full refresh, timestamp watermark, late-arrival lookback, and bounded backfills.
-- PostgreSQL `COPY` staging for more than half a million rows.
-- Stable line identity and conflict-safe upserts.
-- Cancellations remain in the fact table so net revenue is analytically correct.
-- Quality results, pipeline history, Prometheus metrics, and per-batch evidence.
-- Separate Airflow metadata database, scheduler, and webserver.
+```mermaid
+flowchart TB
+    UCI["UCI ZIP · XLSX"] --> FP["Download + source fingerprint"]
+    FP --> RULES["Invoice-line rules<br/>types · quantities · prices · keys"]
+    RULES -->|accepted| BATCH["Partitioned Parquet"]
+    RULES -->|rejected| Q["Quarantine with reason"]
+    BATCH --> COPY["PostgreSQL COPY staging"]
+    COPY --> FACT["fact_invoice_line"]
+    FACT --> SALES["Sales marts<br/>day · country · product"]
+    FACT --> RFM["Customer RFM mart"]
+    RULES --> CONTROL["Runs · watermark · DQ · metrics"]
+    AIRFLOW["Airflow"] -. full / incremental / backfill .-> FP
+```
 
-## Warehouse model
+## Full-workbook scorecard
 
-- `ecommerce.dim_customer`
-- `ecommerce.dim_product`
-- `ecommerce.fact_invoice_line`
-- `ecommerce.mart_daily_sales`
-- `ecommerce.mart_country_sales`
-- `ecommerce.mart_product_performance`
-- `ecommerce.mart_customer_rfm`
-- control tables for runs, watermarks, and quality results
+| Coverage | Net revenue | Incremental window | Warehouse after rerun |
+|:---:|:---:|:---:|:---:|
+| 2010-12-01 → 2011-12-09 | **£9,769,872.05** | 7,855 lines | **541,907** lines |
 
-## Run locally
+## Run the analysis locally
 
 ```bash
 make full
 docker compose up -d airflow airflow-scheduler pgadmin
 ```
 
-- Airflow: <http://localhost:8083> — `airflow` / `airflow`
-- PostgreSQL: `localhost:5543` — database/user/password: `ecommerce`
-- pgAdmin: <http://localhost:5053> — `admin@example.com` / `admin`
-
-Incremental run:
+Then choose a workload:
 
 ```bash
 make incremental
-```
-
-Backfill:
-
-```bash
 make backfill START=2011-10-01T00:00:00+00:00 END=2011-10-31T23:59:59+00:00
-```
-
-Validation:
-
-```bash
 make test
-docker compose run --rm airflow airflow dags test ecommerce_invoice_etl 2026-07-24
 ```
 
-## Execution evidence
+- Airflow: <http://localhost:8083> — `airflow / airflow`
+- PostgreSQL: `localhost:5543` — database/user/password: `ecommerce`
+- pgAdmin: <http://localhost:5053> — `admin@example.com / admin`
 
-The screenshots below were captured directly from the running Airflow 2.10 UI after an actual UCI pipeline run; they are not reconstructed mockups. The Grid view shows three successful DAG runs and all four tasks in green. The task log shows the real incremental lookback run reading the 541,909-row source, accepting 7,855 rows in the window, retaining 541,907 warehouse rows, and exiting with code 0.
+## See the pipeline run
 
-### Airflow Grid — successful DAG runs
+The first two images are direct captures from the running Airflow UI.
 
-![Real Airflow Grid showing three successful ecommerce_invoice_etl runs](docs/images/airflow-ui.png)
+| Airflow orchestration | Business-facing output |
+|---|---|
+| Three successful runs and four green tasks | Revenue, cancellations and customer metrics |
+| ![Real Airflow Grid for ecommerce_invoice_etl](docs/images/airflow-ui.png) | ![Analytics dashboard generated from the ecommerce marts](docs/images/dashboard.png) |
 
-### Airflow task log — actual ETL output
+### The numbers behind the green run
 
-![Real Airflow transform_and_load task log with UCI row counts and successful exit](docs/images/airflow-task-log.png)
+The real `transform_and_load` log records 541,909 source rows, 541,907 warehouse rows and return code `0`.
 
-### Pipeline and analytics outputs
+![Real Airflow task log with UCI row counts](docs/images/airflow-task-log.png)
 
-![Pipeline run](docs/images/pipeline-run.png)
+<details>
+<summary><strong>Open the machine-readable run summary</strong></summary>
 
-![Analytics dashboard](docs/images/dashboard.png)
+![Pipeline run summary](docs/images/pipeline-run.png)
+</details>
 
 ## Data source
 
-[UCI Machine Learning Repository — Online Retail](https://archive.ics.uci.edu/dataset/352/online+retail). The workbook is downloaded at runtime and not committed.
-
-Vietnamese documentation: [README.vi.md](README.vi.md)
+[UCI Machine Learning Repository — Online Retail](https://archive.ics.uci.edu/dataset/352/online+retail). The original workbook is downloaded at runtime and is not committed.

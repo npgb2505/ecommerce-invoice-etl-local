@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320" role="img" aria-labelledby="title desc">
+  <title id="title">UCI Online Retail ETL</title>
+  <desc id="desc">A plum and coral invoice analytics illustration for the ecommerce platform.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#25122f"/>
+      <stop offset="1" stop-color="#5b234c"/>
+    </linearGradient>
+    <linearGradient id="warm" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#ff7a59"/>
+      <stop offset="1" stop-color="#ffc857"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="12" stdDeviation="15" flood-color="#130719" flood-opacity=".5"/>
+    </filter>
+  </defs>
+  <rect width="1200" height="320" rx="24" fill="url(#bg)"/>
+  <path d="M0 52 C240 118 402 5 650 55 S996 125 1200 58 V0 H0Z" fill="#ff7a59" opacity=".055"/>
+  <circle cx="1080" cy="270" r="190" fill="#ffc857" opacity=".08"/>
+
+  <g font-family="Inter,Segoe UI,Arial,sans-serif">
+    <rect x="58" y="46" width="178" height="30" rx="15" fill="#ff7a59" opacity=".16"/>
+    <text x="76" y="67" font-size="13" font-weight="750" letter-spacing="1.35" fill="#ffb29e">COMMERCE ANALYTICS</text>
+    <text x="58" y="137" font-size="50" font-weight="750" fill="#fff7fb">Invoice Intelligence</text>
+    <text x="58" y="179" font-size="24" font-weight="500" fill="#e6b8d2">From messy invoice lines to trustworthy customer insight</text>
+    <g font-size="15" fill="#e6cad9">
+      <text x="58" y="230">541,909 lines</text>
+      <circle cx="172" cy="225" r="3" fill="#ff9b7e"/>
+      <text x="187" y="230">10,624 cancellations retained</text>
+      <circle cx="403" cy="225" r="3" fill="#ffc857"/>
+      <text x="418" y="230">RFM marts</text>
+    </g>
+    <rect x="58" y="258" width="363" height="4" rx="2" fill="url(#warm)"/>
+  </g>
+
+  <g transform="translate(765 38)" filter="url(#shadow)">
+    <g transform="rotate(3 150 120)">
+      <path d="M48 10 H275 V236 L260 226 245 236 230 226 215 236 200 226 185 236 170 226 155 236 140 226 125 236 110 226 95 236 80 226 64 236 48 226Z" fill="#fff9f2"/>
+      <rect x="78" y="41" width="96" height="12" rx="6" fill="#502347" opacity=".9"/>
+      <rect x="78" y="69" width="164" height="7" rx="3.5" fill="#bca3b2"/>
+      <rect x="78" y="88" width="137" height="7" rx="3.5" fill="#d1bdc8"/>
+      <rect x="78" y="119" width="72" height="8" rx="4" fill="#ff7a59"/>
+      <rect x="183" y="119" width="59" height="8" rx="4" fill="#502347"/>
+      <rect x="78" y="143" width="83" height="8" rx="4" fill="#ff7a59"/>
+      <rect x="183" y="143" width="59" height="8" rx="4" fill="#502347"/>
+      <line x1="78" y1="172" x2="242" y2="172" stroke="#d7c3cd" stroke-width="2"/>
+      <text x="78" y="202" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="15" font-weight="700" fill="#502347">NET REVENUE</text>
+      <text x="242" y="202" text-anchor="end" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="18" font-weight="800" fill="#d45148">£9.77M</text>
+    </g>
+    <circle cx="312" cy="78" r="45" fill="#ff7a59"/>
+    <path d="M293 79 l13 13 25-30" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="267" y="159" width="100" height="51" rx="15" fill="#ffc857"/>
+    <text x="317" y="181" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="11" font-weight="800" fill="#3d2134">CUSTOMER</text>
+    <text x="317" y="198" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="15" font-weight="800" fill="#3d2134">RFM</text>
+  </g>
+</svg>

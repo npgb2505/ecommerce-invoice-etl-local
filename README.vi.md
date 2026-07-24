@@ -1,88 +1,103 @@
-# Pipeline UCI Online Retail
+<p align="center">
+  <img src="docs/readme-header.svg" alt="Invoice Intelligence — từ dòng hóa đơn đến insight khách hàng" width="100%">
+</p>
 
-Dự án xử lý toàn bộ workbook **UCI Online Retail**, không sử dụng dữ liệu tự sinh. Pipeline tải và kiểm chứng nguồn, làm sạch ở cấp dòng hóa đơn, giữ nguyên giao dịch hủy, xuất Parquet/quarantine theo batch rồi nạp hàng loạt vào PostgreSQL. Airflow điều phối full refresh, incremental và backfill.
+<p align="center">
+  <a href="https://github.com/npgb2505/ecommerce-invoice-etl-local/actions/workflows/ci.yml"><img src="https://github.com/npgb2505/ecommerce-invoice-etl-local/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  · <a href="README.md">English</a>
+  · <a href="docs/architecture.excalidraw">Sơ đồ chỉnh sửa được</a>
+</p>
 
-> Chạy hoàn toàn bằng Docker và dữ liệu công khai, không cần cloud trả phí.
+# UCI Online Retail — Pipeline phân tích hóa đơn
 
-## Kết quả đã kiểm chứng
+Một hóa đơn chưa chắc đã là doanh thu. Pipeline này giữ lại giao dịch hủy, người mua ẩn danh và mô tả sản phẩm chưa hoàn hảo để số liệu doanh thu và khách hàng phản ánh đúng nghiệp vụ. Toàn bộ workbook **UCI Online Retail** được xử lý và xuất thành các mart sẵn sàng phân tích trong PostgreSQL.
 
-| Chỉ số | Kết quả |
-|---|---:|
-| Dòng nguồn | 541.909 |
-| Hợp lệ / bị loại | 541.907 / 2 |
-| Dòng hủy được giữ lại | 10.624 |
-| Khách hàng xác định được | 4.372 |
-| Khoảng thời gian | 01/12/2010–09/12/2011 |
-| Doanh thu thuần | £9.769.872,05 |
-| Dòng ở lần incremental | 7.855 |
-| Dòng warehouse sau chạy lại | 541.907 |
+## Bài toán kinh doanh được trả lời
 
-Lần incremental xử lý lại cửa sổ hai ngày nhưng không làm tăng số dòng fact, chứng minh pipeline idempotent.
+| Câu hỏi | Data product |
+|---|---|
+| Doanh thu thuần sau giao dịch hủy là bao nhiêu? | `mart_daily_sales` |
+| Thị trường nào tạo ra nhiều giá trị nhất? | `mart_country_sales` |
+| Sản phẩm nào vừa có nhu cầu vừa tạo doanh thu? | `mart_product_performance` |
+| Khách hàng nào mua gần đây, thường xuyên và giá trị cao? | `mart_customer_rfm` |
 
-## Kiến trúc
+## Những vấn đề thật trong dữ liệu
 
-```mermaid
-flowchart LR
-    A["UCI ZIP / XLSX"] --> B["Tải nguyên tử + SHA-256"]
-    B --> C["Kiểm tra schema và kiểu"]
-    C --> D["Quality rules cấp dòng hóa đơn"]
-    D --> P["Parquet theo batch"]
-    D --> Q["Quarantine"]
-    P --> S["PostgreSQL COPY staging"]
-    S --> U["Upsert dimensions và fact"]
-    U --> M["Mart ngày, quốc gia, sản phẩm, RFM"]
-    D --> O["Audit, watermark, DQ, metrics"]
-    AF["Airflow"] --> B
+```text
+541.909 dòng hóa đơn
+├── 541.907 dòng hợp lệ
+├──       2 dòng quarantine
+├──  10.624 dòng hủy được giữ lại
+└──   4.372 khách hàng xác định được
 ```
 
-Bản Excalidraw có thể chỉnh sửa: [docs/architecture.excalidraw](docs/architecture.excalidraw)
+- **Giao dịch hủy vẫn nằm trong fact.** Xóa chúng sẽ làm doanh thu bị phóng đại.
+- **Thiếu CustomerID không làm mất giá trị giao dịch.** Chỉ loại khỏi phép tính RFM cấp khách hàng.
+- **Khóa dòng ổn định giúp chạy lại an toàn.** Lookback hai ngày xử lý lại 7.855 dòng nhưng warehouse vẫn giữ 541.907 dòng.
+- **PostgreSQL `COPY` xử lý khối lượng lớn.** Hơn nửa triệu dòng được nạp theo lô, không insert từng dòng.
 
-## Điểm kỹ thuật chính
+## Từ workbook đến insight khách hàng
 
-- Tải toàn bộ workbook 23 MB của UCI, có checksum và manifest truy vết.
-- Full refresh, watermark theo thời gian, lookback cho dữ liệu đến trễ và backfill có giới hạn.
-- Dùng PostgreSQL `COPY` thay cho insert từng dòng.
-- Khóa dòng ổn định và upsert an toàn khi chạy lại.
-- Giữ giao dịch hủy để doanh thu thuần và RFM phản ánh đúng nghiệp vụ.
-- Lưu lịch sử batch, từng quality check, JSON evidence và Prometheus metrics.
-- Airflow tách metadata PostgreSQL, scheduler và webserver.
+```mermaid
+flowchart TB
+    UCI["UCI ZIP · XLSX"] --> FP["Tải + fingerprint nguồn"]
+    FP --> RULES["Rule cấp dòng hóa đơn<br/>kiểu · số lượng · giá · khóa"]
+    RULES -->|hợp lệ| BATCH["Parquet theo partition"]
+    RULES -->|bị loại| Q["Quarantine có lý do"]
+    BATCH --> COPY["PostgreSQL COPY staging"]
+    COPY --> FACT["fact_invoice_line"]
+    FACT --> SALES["Mart bán hàng<br/>ngày · quốc gia · sản phẩm"]
+    FACT --> RFM["Mart RFM khách hàng"]
+    RULES --> CONTROL["Runs · watermark · DQ · metrics"]
+    AIRFLOW["Airflow"] -. full / incremental / backfill .-> FP
+```
 
-## Mô hình dữ liệu
+## Scorecard toàn bộ workbook
 
-`dim_customer`, `dim_product`, `fact_invoice_line`, `mart_daily_sales`, `mart_country_sales`, `mart_product_performance`, `mart_customer_rfm` cùng các bảng điều khiển run/watermark/DQ.
+| Khoảng thời gian | Doanh thu thuần | Cửa sổ incremental | Warehouse sau chạy lại |
+|:---:|:---:|:---:|:---:|
+| 01/12/2010 → 09/12/2011 | **£9.769.872,05** | 7.855 dòng | **541.907** dòng |
 
-## Cách chạy
+## Chạy phân tích trên máy
 
 ```bash
 make full
 docker compose up -d airflow airflow-scheduler pgadmin
 ```
 
-- Airflow: <http://localhost:8083> — `airflow` / `airflow`
-- PostgreSQL: `localhost:5543` — database/user/password: `ecommerce`
-- pgAdmin: <http://localhost:5053> — `admin@example.com` / `admin`
+Chọn chế độ chạy tiếp theo:
 
 ```bash
 make incremental
 make backfill START=2011-10-01T00:00:00+00:00 END=2011-10-31T23:59:59+00:00
+make test
 ```
 
-## Ảnh chạy thực tế
+- Airflow: <http://localhost:8083> — `airflow / airflow`
+- PostgreSQL: `localhost:5543` — database/user/password: `ecommerce`
+- pgAdmin: <http://localhost:5053> — `admin@example.com / admin`
 
-Hai ảnh Airflow dưới đây được chụp trực tiếp từ giao diện Airflow 2.10 đang chạy sau một lần chạy pipeline thật, không phải ảnh dựng lại. Grid thể hiện ba DAG run thành công và cả bốn task đều màu xanh. Log của task `transform_and_load` ghi nhận pipeline đọc toàn bộ nguồn 541.909 dòng, xử lý 7.855 dòng trong cửa sổ incremental, giữ nguyên 541.907 dòng trong warehouse và kết thúc với mã 0.
+## Nhìn trực tiếp pipeline hoạt động
 
-### Airflow Grid — các DAG run thành công
+Hai ảnh Airflow dưới đây được chụp trực tiếp từ hệ thống đang chạy.
 
-![Giao diện Airflow Grid thật với ba lần chạy ecommerce_invoice_etl thành công](docs/images/airflow-ui.png)
+| Điều phối kỹ thuật | Kết quả hướng nghiệp vụ |
+|---|---|
+| Ba run thành công, bốn task đều xanh | Doanh thu, cancellation và chỉ số khách hàng |
+| ![Airflow Grid thật của ecommerce_invoice_etl](docs/images/airflow-ui.png) | ![Dashboard được tạo từ các ecommerce mart](docs/images/dashboard.png) |
 
-### Log task Airflow — kết quả ETL thật
+### Những con số phía sau run màu xanh
 
-![Log thật của task transform_and_load với số dòng UCI và trạng thái thành công](docs/images/airflow-task-log.png)
+Log thật của `transform_and_load` ghi nhận 541.909 dòng nguồn, 541.907 dòng warehouse và mã trả về `0`.
 
-### Kết quả pipeline và dashboard
+![Log Airflow thật với số dòng UCI](docs/images/airflow-task-log.png)
+
+<details>
+<summary><strong>Mở bản tóm tắt lần chạy dành cho máy đọc</strong></summary>
 
 ![Tóm tắt lần chạy pipeline](docs/images/pipeline-run.png)
+</details>
 
-![Dashboard phân tích](docs/images/dashboard.png)
+## Nguồn dữ liệu
 
-Nguồn: [UCI Online Retail](https://archive.ics.uci.edu/dataset/352/online+retail). Tệp gốc được tải lúc chạy và không commit lên Git.
+[UCI Machine Learning Repository — Online Retail](https://archive.ics.uci.edu/dataset/352/online+retail). Workbook gốc được tải lúc chạy và không được commit.
