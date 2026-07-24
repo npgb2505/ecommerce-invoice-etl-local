@@ -1,0 +1,51 @@
+services:
+  warehouse:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ecommerce
+      POSTGRES_PASSWORD: ecommerce
+      POSTGRES_DB: ecommerce
+    ports:
+      - "5543:5432"
+    volumes:
+      - ecommerce_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ecommerce -d ecommerce"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  airflow:
+    build: .
+    command: standalone
+    environment:
+      AIRFLOW_HOME: /opt/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/project/dags
+      WAREHOUSE_DSN: postgresql://ecommerce:ecommerce@warehouse:5432/ecommerce
+      PYTHONPATH: /opt/project
+    ports:
+      - "8083:8080"
+    volumes:
+      - ./:/opt/project
+      - ecommerce_airflow:/opt/airflow
+    depends_on:
+      warehouse:
+        condition: service_healthy
+
+  pgadmin:
+    image: dpage/pgadmin4:9.1
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    ports:
+      - "5053:80"
+    depends_on:
+      warehouse:
+        condition: service_healthy
+
+volumes:
+  ecommerce_pgdata:
+  ecommerce_airflow:
+

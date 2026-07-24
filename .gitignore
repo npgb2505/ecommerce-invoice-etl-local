@@ -1,0 +1,11 @@
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+airflow/
+data/clean/
+data/rejected/
+artifacts/*.json
+artifacts/*.html
+*.log
+
