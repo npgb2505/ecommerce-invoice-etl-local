@@ -67,4 +67,22 @@ make incremental
 make backfill START=2011-10-01T00:00:00+00:00 END=2011-10-31T23:59:59+00:00
 ```
 
+## Ảnh chạy thực tế
+
+Hai ảnh Airflow dưới đây được chụp trực tiếp từ giao diện Airflow 2.10 đang chạy sau một lần chạy pipeline thật, không phải ảnh dựng lại. Grid thể hiện ba DAG run thành công và cả bốn task đều màu xanh. Log của task `transform_and_load` ghi nhận pipeline đọc toàn bộ nguồn 541.909 dòng, xử lý 7.855 dòng trong cửa sổ incremental, giữ nguyên 541.907 dòng trong warehouse và kết thúc với mã 0.
+
+### Airflow Grid — các DAG run thành công
+
+![Giao diện Airflow Grid thật với ba lần chạy ecommerce_invoice_etl thành công](docs/images/airflow-ui.png)
+
+### Log task Airflow — kết quả ETL thật
+
+![Log thật của task transform_and_load với số dòng UCI và trạng thái thành công](docs/images/airflow-task-log.png)
+
+### Kết quả pipeline và dashboard
+
+![Tóm tắt lần chạy pipeline](docs/images/pipeline-run.png)
+
+![Dashboard phân tích](docs/images/dashboard.png)
+
 Nguồn: [UCI Online Retail](https://archive.ics.uci.edu/dataset/352/online+retail). Tệp gốc được tải lúc chạy và không commit lên Git.

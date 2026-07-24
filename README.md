@@ -93,7 +93,17 @@ docker compose run --rm airflow airflow dags test ecommerce_invoice_etl 2026-07-
 
 ## Execution evidence
 
-![Airflow DAG](docs/images/airflow-dag.png)
+The screenshots below were captured directly from the running Airflow 2.10 UI after an actual UCI pipeline run; they are not reconstructed mockups. The Grid view shows three successful DAG runs and all four tasks in green. The task log shows the real incremental lookback run reading the 541,909-row source, accepting 7,855 rows in the window, retaining 541,907 warehouse rows, and exiting with code 0.
+
+### Airflow Grid — successful DAG runs
+
+![Real Airflow Grid showing three successful ecommerce_invoice_etl runs](docs/images/airflow-ui.png)
+
+### Airflow task log — actual ETL output
+
+![Real Airflow transform_and_load task log with UCI row counts and successful exit](docs/images/airflow-task-log.png)
+
+### Pipeline and analytics outputs
 
 ![Pipeline run](docs/images/pipeline-run.png)
 
