@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: docker compose up -d airflow-db warehouse
       - run: docker compose build airflow airflow-init
       - run: docker compose run --rm airflow-init
